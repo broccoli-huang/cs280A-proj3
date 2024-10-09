@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 3</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .box{
+            display:inline-block;
+            margin:10px;
+        }
+        .box2{
+            display:inline-block;
+            margin:3px;
+        }
+        .container{
+            margin:0px;
+        }
+        .im{
+            margin: 10px;
+        }
+        .im2{
+            margin: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <h1 style="text-align:center">Project 3</h1>
+        <h4 style="text-align:center">Face Morphing</h4>
+    <h2 style="text-align:center">Yuan-Hao Huang</h2>
+        <h4 style="text-align:center">yhhuang20@berkeley.edu</h4>
+
+    <h2>Overview</h2>
+    <p>
+        This project applies morphing techniques (including warping and cross-dissolving) to build visual effects. 
+        These tricks include face changing animation, extrapolation from the population, and changing identity and features of a person. 
+    </p>
+    
+    <h2>Part 1</h2>
+    <p>
+        I used the provided <a href="https://cal-cs180.github.io/fa23/hw/proj3/tool.html">tool</a> for labelling, and used scipy.spatial.Delunay to compute triangulation on the midway shape. 
+        Then I applied the triangulation on both images. 
+    </p>
+    <div class="container">
+        <div class="box">Me: <br><img src="Part1/A.jpg" width="320" class="im"></div>
+        <div class="box">Wan-an Chiang (the mayor of Taipei City, Taiwan): <br><img src="Part1/B.jpg" width="320" class="im"></div>
+    </div>
+    <div class="container">
+        <div class="box">Me (labelled & triangulated): <br><img src="Part1/A_tri.jpg" width="320" class="im"></div>
+        <div class="box">Wan-an Chiang (labelled & triangulated): <br><img src="Part1/B_tri.jpg" width="320" class="im"></div>
+    </div>
+    
+    <h2>Part 2</h2>
+    <p>
+        The most important part of this section is to derive the affine transformation matrix. 
+        Suppose \(T_i=\begin{bmatrix}a&b&c\\d&e&f\\0&0&1\end{bmatrix}\) is the matrix that maps the triangle \((0, 0), (0, 1), (1, 0)\) to \((A_x, A_y), (B_x, B_y), (C_x, C_y)\). 
+        Solving 
+        \[\begin{cases}
+            \begin{bmatrix}a&b&c\\d&e&f\\0&0&1\end{bmatrix} \begin{bmatrix}0\\0\\1\end{bmatrix} = \begin{bmatrix}A_x\\A_y\\1\end{bmatrix}\\
+            \begin{bmatrix}a&b&c\\d&e&f\\0&0&1\end{bmatrix} \begin{bmatrix}0\\1\\1\end{bmatrix} = \begin{bmatrix}B_x\\B_y\\1\end{bmatrix}\\
+            \begin{bmatrix}a&b&c\\d&e&f\\0&0&1\end{bmatrix} \begin{bmatrix}1\\0\\1\end{bmatrix} = \begin{bmatrix}C_x\\C_y\\1\end{bmatrix}
+        \end{cases}\]
+        we get
+        \[
+            T_i = \begin{bmatrix}C_x-A_x&B_x-A_x&A_x\\C_y-A_y&B_y-A_y&A_y\\0&0&1\end{bmatrix}
+        \]
+        and
+        \[
+            {T_i}^{-1} = \frac{1}{\det{T_i}}\begin{bmatrix}B_y-A_y&A_x-B_x&B_xA_y-AxBy\\A_y-C_y&C_x-A_x&A_xC_y-A_yC_x\\0&0&(C_x-A_x)(B_y-A_y)-(B_x-A_x)(C_y-A_y)\end{bmatrix}
+        \]
+        Suppose we now want to map triangle 2 to triangle 1 using affine transformation \(T\). 
+        We can first map triangle 2 to \((0, 0), (0, 1), (1, 0)\) using \({T_2}^{-1}\), then map \((0, 0), (0, 1), (1, 0)\) to triangle 1 using \(T_1\). 
+        Thus, 
+        \[
+            T = T_1{T_2}^{-1}
+        \]
+        and its value can be easily obtained by above formulas and matrix multiplication. 
+    </p>
+    <p>
+        scipy.ndimage.map_coordinates is used to find the pixel values in the origin image given the coordinates. 
+        Then skimage.draw.polygon is used as masks to identify the area of each triangle. 
+        Since all the masks do not align perfectly (because each triangle is built independently), there are some defects on the boundries in the output figures. 
+    </p>
+    <div class="container">
+        <div class="box">Me: <br><img src="Part2/A.jpg" width="320" class="im"></div>
+        <div class="box">Wan-an Chiang: <br><img src="Part2/B.jpg" width="320" class="im"></div>
+    </div>
+    <div class="container">
+        <div class="box">Me (warped to midway shape): <br><img src="Part2/mid_A.jpg" width="320" class="im"></div>
+        <div class="box">Wan-an Chiang (warped to midway shape): <br><img src="Part2/mid_B.jpg" width="320" class="im"></div>
+        <div class="box">Averaged color: <br><img src="Part2/mid_mix_AB.jpg" width="320" class="im"></div>
+    </div>
+
+    <h2>Part 3</h2>
+    <p>
+        This part is basically the same as Part 2, except that the midway shape and color averaging are calculated as weighted average of the two figures. 
+        As for determining the weights, I found that for two images with similar colors (such as two human faces), using linearly increasing weights (i.e. w=0, 1/45, 2/45, 3/45, ..., 1 for 46 frames) for both shape and color would work well. 
+        However, if we are mixing two images that differ very much in colors, it would be better to change the shape more on the beginning and the end, while change the color more in the middle. 
+        We can use linear function for shape (warp_frac) and sigmoid function for color (dissolve_frac). 
+    </p>
+    <div class="container">
+        <div class="box">10 fps: <br><img src="Part3/A to B 10fps.gif" width="320" class="im"></div>
+        <div class="box">20 fps: <br><img src="Part3/A to B 20fps.gif" width="320" class="im"></div>
+        <div class="box">30 fps: <br><img src="Part3/A to B 30fps.gif" width="320" class="im"></div>
+    </div>    
+
+    <h2>Part 4</h2>
+    <p>
+        I used the male faces in the <a href="https://web.archive.org/web/20210305094647/http://www2.imm.dtu.dk/~aam/datasets/datasets.html">Danes</a> dataset. 
+        After calculating the average shape, I warped the faces into the average shape. 
+        Here are some examples.
+    </p>
+    <div class="container">
+        <div class="box">Original: <br><img src="Part4/01-1m.jpg" width="260" class="im"></div>
+        <div class="box">Warped: <br><img src="Part4/01_warped.jpg" width="260" class="im"></div>
+        <div class="box">Original: <br><img src="Part4/07-1m.jpg" width="260" class="im"></div>
+        <div class="box">Warped: <br><img src="Part4/07_warped.jpg" width="260" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Original: <br><img src="Part4/09-1m.jpg" width="260" class="im"></div>
+        <div class="box">Warped: <br><img src="Part4/09_warped.jpg" width="260" class="im"></div>
+        <div class="box">Original: <br><img src="Part4/19-1m.jpg" width="260" class="im"></div>
+        <div class="box">Warped: <br><img src="Part4/19_warped.jpg" width="260" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">The average face of the dataset (male only): <br><img src="Part4/avg_face.jpg" width="320" class="im"></div>
+        <div class="box">Me: <br><img src="Part4/me.jpg" width="320" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Me warped into the average shape: <br><img src="Part4/me_to_avg.jpg" width="320" class="im"></div>
+        <div class="box">Average face warped into my shape: <br><img src="Part4/avg_to_me.jpg" width="320" class="im"></div>
+    </div> 
+    
+    <h2>Part 5</h2>
+    <p>A=Average Face, M=Me</p>
+    <p>My shape:</p>
+    <div class="container">
+        <div class="box">A*150%+M*(-50%) <br><img src="Part5/A 2 -0.5.jpg" width="160" class="im"></div>
+        <div class="box">A*100%+M*0% <br><img src="Part5/A 3 0.jpg" width="160" class="im"></div>
+        <div class="box">A*50%+M*50% <br><img src="Part5/A 4 0.5.jpg" width="160" class="im"></div>
+        <div class="box">A*0%+M*100% <br><img src="Part5/A 5 1.jpg" width="160" class="im"></div>
+        <div class="box">A*(-50%)+M*150% <br><img src="Part5/A 6 1.5.jpg" width="160" class="im"></div>
+    </div> 
+    <p>Average shape:</p>
+    <div class="container">
+        <div class="box">A*150%+M*(-50%) <br><img src="Part5/B 2 -0.5.jpg" width="160" class="im"></div>
+        <div class="box">A*100%+M*0% <br><img src="Part5/B 3 0.jpg" width="160" class="im"></div>
+        <div class="box">A*50%+M*50% <br><img src="Part5/B 4 0.5.jpg" width="160" class="im"></div>
+        <div class="box">A*0%+M*100% <br><img src="Part5/B 5 1.jpg" width="160" class="im"></div>
+        <div class="box">A*(-50%)+M*150% <br><img src="Part5/B 6 1.5.jpg" width="160" class="im"></div>
+    </div> 
+    
+    <h2>Bells and Whistles</h2>
+    <p>
+        I changed the gender of my face using the Average Taiwanese Female image found <a href="https://pmsol3.wordpress.com/2009/10/10/world-of-facial-averages-east-southeast-asia-pacific-islander/">here</a>.
+    </p>
+    <div class="container">
+        <div class="box">Average Taiwanese Female: <br><img src="BW/female.jpg" width="320" class="im"></div>
+        <div class="box">Me: <br><img src="BW/me.jpg" width="320" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Warp my face into the female's shape (change shape): <br><img src="BW/just_shape.jpg" width="320" class="im"></div>
+        <div class="box">Warp the female face into my face, then cross-dissolve with me (change appearance): <br><img src="BW/just_appearance.jpg" width="320" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Warp both my face and the females's face into our midway shape, then cross-dissolve (change both shapr and appearance): <br><img src="BW/both.jpg" width="320" class="im"></div>
+    </div>
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    
+    <h2>References</h2>
+        <h4>numpy</h4>
+            <a href="https://numpy.org/doc/stable/reference/generated/numpy.matmul.html">numpy.matmul</a><br>
+            <a href="https://numpy.org/doc/2.0/reference/generated/numpy.ndarray.flatten.html">numpy.ndarray.flatten</a><br>
+            <a href="https://numpy.org/doc/2.0/reference/generated/numpy.transpose.html">numpy.transpose</a><br>
+            <a href="https://numpy.org/doc/2.0/reference/generated/numpy.average.html">numpy.average</a> <br>
+            <a href="https://numpy.org/doc/stable/reference/generated/numpy.clip.html">numpy.clip</a> <br>
+        <h4>scipy</h4>
+            <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.Delaunay.html">spatial.Delaunay</a><br>
+            <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.map_coordinates.html">ndimage.map_coordinates</a><br>
+        <h4>scikit-image</h4>
+            <a href="https://scikit-image.org/docs/dev/api/skimage.draw.html#skimage.draw.polygon">skimage.draw.polygon</a><br>
+        <h4>geeksforgeeks</h4>
+            <a href="https://www.geeksforgeeks.org/read-json-file-using-python/">Read JSON file using Python</a><br>
+            <a href="https://www.geeksforgeeks.org/read-a-file-line-by-line-in-python/">Read a file line by line in Python</a><br>
+        <h4>stackoverflow</h4>
+            <a href="https://stackoverflow.com/questions/35286540/how-to-display-an-image">How to display an image</a><br>
+            <a href="https://stackoverflow.com/questions/8213522/when-to-use-cla-clf-or-close-for-clearing-a-plot">When to use cla(), clf() or close() for clearing a plot</a><br>
+            <a href="https://stackoverflow.com/questions/9622163/save-plot-to-image-file-instead-of-displaying-it">Save plot to image file instead of displaying it</a><br>
+            <a href="https://stackoverflow.com/questions/24436063/numpy-matrix-of-coordinates">Numpy matrix of coordinates</a><br>
+            <a href="https://stackoverflow.com/questions/753190/programmatically-generate-video-or-animated-gif-in-python">Programmatically generate video or animated GIF in Python?</a><br>
+            <a href="https://stackoverflow.com/questions/339007/how-do-i-pad-a-string-with-zeros">How do I pad a string with zeros?</a><br>
+            <a href="https://stackoverflow.com/questions/57375806/how-can-i-check-if-a-file-exists-in-python">How can I check if a file exists in python? [duplicate]</a><br>
+        <h4>w3schools</h4>
+            <a href="https://www.w3schools.com/python/ref_func_round.asp">Python round() Function</a><br>
+            <a href="https://www.w3schools.com/python/python_classes.asp">Python Classes and Objects</a><br>
+    </body>
+</html>
